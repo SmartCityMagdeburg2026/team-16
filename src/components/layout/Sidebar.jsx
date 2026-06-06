@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Users, Buildings, Train, Leaf,
   ChartBar, GraduationCap, TrendUp, MagnifyingGlass,
-  Info, CaretLeft, CaretRight, MapPin, House, MapTrifold,
+  Info, MapPin, House, MapTrifold, List, X,
 } from "@phosphor-icons/react";
 import { useLang } from "@/lib/LanguageContext";
 import { translations } from "@/lib/translations";
@@ -27,300 +27,403 @@ const NAV = [
   { href: "/about",       key: "about",       icon: Info            },
 ];
 
-const SIDEBAR_KEY = "sidebar-collapsed";
-
-let sidebarListeners = [];
-function emitSidebarChange() { sidebarListeners.forEach(l => l()); }
-function subscribeSidebar(cb) {
-  sidebarListeners.push(cb);
-  return () => { sidebarListeners = sidebarListeners.filter(l => l !== cb); };
-}
-function getSidebarCollapsed() {
-  try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
-}
-function getSidebarCollapsedServer() { return false; }
-function setSidebarCollapsed(value) {
-  try { localStorage.setItem(SIDEBAR_KEY, String(value)); } catch {}
-  emitSidebarChange();
-}
-
-export default function Sidebar() {
+export default function Navbar() {
   const pathname = usePathname();
   const { lang, setLang } = useLang();
   const tr = translations[lang];
 
-  const collapsed = useSyncExternalStore(
-    subscribeSidebar,
-    getSidebarCollapsed,
-    getSidebarCollapsedServer,
-  );
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [overflowFrom, setOverflowFrom] = useState(NAV.length);
+  const navRef = useRef(null);
+  const itemRefs = useRef([]);
 
-  const toggle = useCallback(() => {
-    setSidebarCollapsed(!getSidebarCollapsed());
+  useEffect(() => {
+    function measure() {
+      if (!navRef.current) return;
+      const containerWidth = navRef.current.offsetWidth;
+      // Reserve space for logo (~200px) + lang toggle (~120px)
+      const available = containerWidth - 320;
+      let consumed = 0;
+      let cutoff = NAV.length;
+      for (let i = 0; i < itemRefs.current.length; i++) {
+        const el = itemRefs.current[i];
+        if (!el) continue;
+        consumed += el.offsetWidth + 4;
+        if (consumed > available) { cutoff = i; break; }
+      }
+      setOverflowFrom(cutoff);
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (navRef.current) ro.observe(navRef.current);
+    return () => ro.disconnect();
+  }, [lang]);
+
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+
+  useEffect(() => {
+    function handler(e) {
+      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const visibleNav  = NAV.slice(0, overflowFrom);
+  const overflowNav = NAV.slice(overflowFrom);
+
   return (
-    <aside
-      className="hidden md:flex flex-col shrink-0 h-full border-r relative"
-      style={{
-        width: collapsed ? 68 : 244,
-        minWidth: collapsed ? 68 : 244,
-        background: "#0F172A",
-        borderColor: "rgba(255,255,255,0.08)",
-        transition: "width 0.28s cubic-bezier(0.4,0,0.2,1), min-width 0.28s cubic-bezier(0.4,0,0.2,1)",
-      }}
-    >
-      {/* Logo row */}
-      <div
-        className="flex items-center shrink-0 border-b"
+    <>
+      {/* ── Top bar ── */}
+      <header
+        ref={navRef}
         style={{
-          height: 64,
-          borderColor: "rgba(255,255,255,0.08)",
-          padding: collapsed ? "0 10px" : "0 14px",
-          justifyContent: collapsed ? "center" : "space-between",
-          transition: "padding 0.28s",
+          background: "#FFFFFF",
+          borderBottom: "1px solid #E2E8F0",
+          height: 56,
+          display: "flex",
+          alignItems: "center",
+          padding: "0 20px",
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          width: "100%",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
         }}
       >
+        {/* Logo */}
         <Link
           href="/"
-          className="flex items-center overflow-hidden min-w-0"
-          style={{ gap: collapsed ? 0 : 10, transition: "gap 0.28s" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            textDecoration: "none",
+            flexShrink: 0,
+          }}
           title="CityPulse — Magdeburg"
         >
-          <div className="w-9 h-9 shrink-0 flex items-center justify-center">
+          <div style={{ width: 32, height: 32, flexShrink: 0 }}>
             <Image
               src="/logo.png"
               alt="CityPulse Magdeburg"
-              width={36}
-              height={36}
-              className="object-contain w-full h-full"
+              width={32}
+              height={32}
+              style={{ objectFit: "contain", width: "100%", height: "100%" }}
               priority
             />
           </div>
-          <div
-            style={{
-              overflow: "hidden",
-              maxWidth: collapsed ? 0 : 160,
-              opacity: collapsed ? 0 : 1,
-              transition: "max-width 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.20s",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <p className="text-sm font-semibold tracking-tight" style={{ color: "#F8FAFC" }}>CityPulse</p>
-            <p className="text-[10px] font-medium tracking-wider uppercase" style={{ color: "rgba(148,163,184,0.65)" }}>Magdeburg</p>
+          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.01em" }}>
+              CityPulse
+            </span>
+            <span style={{ fontSize: 9, fontWeight: 500, color: "#94A3B8", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 1 }}>
+              Magdeburg
+            </span>
           </div>
         </Link>
 
-        {!collapsed && (
-          <button
-            onClick={toggle}
-            className="flex items-center justify-center rounded-lg transition-colors duration-150"
-            style={{ width: 28, height: 28, flexShrink: 0, color: "rgba(148,163,184,0.55)" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#CBD5E1"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(148,163,184,0.55)"; }}
-            title="Collapse sidebar"
-          >
-            <CaretLeft size={14} weight="bold" />
-          </button>
-        )}
-      </div>
+        {/* Divider */}
+        <div style={{ width: 1, height: 24, background: "#E2E8F0", marginLeft: 20, flexShrink: 0 }} />
 
-      {/* Nav */}
-      <nav
-        className="flex-1 overflow-y-auto"
-        style={{ padding: collapsed ? "14px 8px" : "14px 10px" }}
-      >
-        {!collapsed && (
-          <p
-            className="pb-2 text-[10px] font-semibold tracking-widest uppercase"
-            style={{ color: "rgba(148,163,184,0.40)", paddingLeft: 10 }}
-          >
-            {tr.ui.explore}
-          </p>
-        )}
-        <div className="space-y-0.5">
-          {NAV.map(({ href, key, icon: Icon }) => {
+        {/* Spacer — pushes nav to the right */}
+        <div style={{ flex: 1 }} />
+
+        {/* ── Desktop nav items (right-aligned) ── */}
+        <nav
+          className="hidden md:flex"
+          style={{
+            alignItems: "center",
+            gap: 2,
+            flexShrink: 0,
+          }}
+        >
+          {visibleNav.map(({ href, key, icon: Icon }, i) => {
             const label = tr.nav[key];
-            const active = href === "/"
-              ? pathname === "/"
-              : pathname === href || pathname.startsWith(href + "/");
+            const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
                 href={href}
-                title={collapsed ? label : undefined}
-                className="relative flex items-center rounded-lg text-[13.5px] font-medium select-none transition-colors duration-150"
+                ref={el => (itemRefs.current[i] = el)}
                 style={{
-                  gap: collapsed ? 0 : 10,
-                  padding: collapsed ? "10px 0" : "9px 10px",
-                  justifyContent: collapsed ? "center" : "flex-start",
-                  color: active ? "#60A5FA" : "rgba(148,163,184,0.70)",
-                  background: active ? "rgba(37,99,235,0.15)" : undefined,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: active ? "#2563EB" : "#475569",
+                  background: active ? "#EFF6FF" : "transparent",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  position: "relative",
+                  transition: "background 0.15s, color 0.15s",
                 }}
-                onMouseEnter={e => { if (!active) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "#CBD5E1"; } }}
-                onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(148,163,184,0.70)"; } }}
+                onMouseEnter={e => { if (!active) { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#0F172A"; } }}
+                onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#475569"; } }}
               >
+                <Icon size={14} weight={active ? "fill" : "regular"} />
+                {label}
                 {active && (
                   <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
-                    style={{ background: "linear-gradient(to bottom, #60A5FA, #2563EB)" }}
+                    style={{
+                      position: "absolute",
+                      bottom: -1,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      width: "60%",
+                      height: 2,
+                      borderRadius: 2,
+                      background: "linear-gradient(to right, #60A5FA, #2563EB)",
+                    }}
                   />
                 )}
-                <Icon size={17} weight={active ? "fill" : "regular"} className="shrink-0" />
-                <span
-                  style={{
-                    overflow: "hidden",
-                    maxWidth: collapsed ? 0 : 160,
-                    opacity: collapsed ? 0 : 1,
-                    transition: "max-width 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.18s",
-                    whiteSpace: "nowrap",
-                    display: "inline-block",
-                  }}
-                >
-                  {label}
-                </span>
               </Link>
             );
           })}
-        </div>
-      </nav>
 
-      {/* Footer */}
-      <div
-        className="border-t shrink-0"
-        style={{
-          borderColor: "rgba(255,255,255,0.08)",
-          padding: collapsed ? "10px 8px" : "10px 10px",
-        }}
-      >
-        {/* Expanded: info text + language toggle */}
-        <div
-          style={{
-            overflow: "hidden",
-            maxHeight: collapsed ? 0 : 120,
-            opacity: collapsed ? 0 : 1,
-            transition: "max-height 0.28s, opacity 0.18s",
-            paddingLeft: 10,
-          }}
-        >
-          <p className="text-[10px]" style={{ color: "rgba(148,163,184,0.35)" }}>{tr.ui.refreshed}</p>
-          <p className="text-[11px] font-medium mt-0.5" style={{ color: "rgba(148,163,184,0.55)" }}>Dec 2024 · v2.4.0</p>
+          {/* "More" overflow dropdown */}
+          {overflowNav.length > 0 && (
+            <div ref={moreRef} style={{ position: "relative", flexShrink: 0 }}>
+              <button
+                onClick={() => setMoreOpen(o => !o)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: moreOpen ? "#F1F5F9" : "transparent",
+                  color: "#475569",
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  transition: "background 0.15s, color 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#0F172A"; }}
+                onMouseLeave={e => { if (!moreOpen) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#475569"; } }}
+              >
+                <List size={14} />
+                {tr.ui?.more ?? "More"}
+                <span style={{ fontSize: 10, marginLeft: 2, opacity: 0.5 }}>▾</span>
+              </button>
 
-          {/* Language toggle */}
-          <div className="mt-4 mb-1">
-            <p className="text-[10px] mb-1.5" style={{ color: "rgba(148,163,184,0.35)" }}>{tr.ui.language}</p>
-            <div
-              className="flex"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                borderRadius: 8,
-                padding: 3,
-                width: "fit-content",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              {["en", "de"].map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLang(l)}
+              {moreOpen && (
+                <div
                   style={{
-                    padding: "5px 14px",
-                    borderRadius: 6,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    background: lang === l ? "#2563EB" : "transparent",
-                    color: lang === l ? "#FFFFFF" : "rgba(148,163,184,0.50)",
-                    boxShadow: lang === l ? "0 1px 4px rgba(37,99,235,0.40)" : "none",
-                    transition: "all 0.15s cubic-bezier(0.4,0,0.2,1)",
-                    cursor: "pointer",
-                    border: "none",
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    background: "#FFFFFF",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: 12,
+                    padding: "6px",
+                    minWidth: 180,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
+                    zIndex: 100,
                   }}
                 >
-                  {l.toUpperCase()}
-                </button>
-              ))}
+                  {overflowNav.map(({ href, key, icon: Icon }) => {
+                    const label = tr.nav[key];
+                    const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setMoreOpen(false)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 9,
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          textDecoration: "none",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: active ? "#2563EB" : "#475569",
+                          background: active ? "#EFF6FF" : "transparent",
+                          transition: "background 0.12s, color 0.12s",
+                        }}
+                        onMouseEnter={e => { if (!active) { e.currentTarget.style.background = "#F1F5F9"; e.currentTarget.style.color = "#0F172A"; } }}
+                        onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#475569"; } }}
+                      >
+                        <Icon size={14} weight={active ? "fill" : "regular"} />
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        </div>
+          )}
+        </nav>
 
-        {/* Collapsed: compact language toggle */}
-        {collapsed && (
-          <div className="flex flex-col items-center gap-1 mb-1">
+        {/* Divider */}
+        <div className="hidden md:block" style={{ width: 1, height: 24, background: "#E2E8F0", margin: "0 16px", flexShrink: 0 }} />
+
+        {/* ── Language toggle + version ── */}
+        <div
+          className="hidden md:flex"
+          style={{ alignItems: "center", gap: 10, flexShrink: 0 }}
+        >
+          <span style={{ fontSize: 10, color: "#CBD5E1", whiteSpace: "nowrap" }}>
+            Dec 2024 · v2.4.0
+          </span>
+          <div
+            style={{
+              display: "flex",
+              background: "#F1F5F9",
+              borderRadius: 8,
+              padding: 3,
+              border: "1px solid #E2E8F0",
+              gap: 2,
+            }}
+          >
             {["en", "de"].map((l) => (
               <button
                 key={l}
                 onClick={() => setLang(l)}
                 style={{
-                  width: 36,
-                  height: 22,
-                  borderRadius: 5,
+                  padding: "4px 10px",
+                  borderRadius: 6,
                   fontSize: 10,
                   fontWeight: 700,
-                  letterSpacing: "0.06em",
+                  letterSpacing: "0.08em",
                   textTransform: "uppercase",
-                  background: lang === l ? "#2563EB" : "rgba(255,255,255,0.06)",
-                  color: lang === l ? "#FFFFFF" : "rgba(148,163,184,0.45)",
-                  border: lang === l ? "none" : "1px solid rgba(255,255,255,0.08)",
-                  transition: "all 0.15s",
+                  background: lang === l ? "#2563EB" : "transparent",
+                  color: lang === l ? "#FFFFFF" : "#94A3B8",
+                  boxShadow: lang === l ? "0 1px 4px rgba(37,99,235,0.30)" : "none",
+                  transition: "all 0.15s cubic-bezier(0.4,0,0.2,1)",
                   cursor: "pointer",
+                  border: "none",
                 }}
-                title={`Switch to ${l.toUpperCase()}`}
               >
                 {l.toUpperCase()}
               </button>
             ))}
           </div>
-        )}
+        </div>
 
+        {/* ── Mobile hamburger ── */}
         <button
-          onClick={toggle}
-          className="mt-2 w-full flex items-center justify-center rounded-lg py-2 gap-2 transition-colors duration-150"
-          style={{ color: "rgba(148,163,184,0.50)" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "#CBD5E1"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(148,163,184,0.50)"; }}
-          title={collapsed ? tr.ui.expand : tr.ui.collapse}
-        >
-          {collapsed ? <CaretRight size={14} /> : <CaretLeft size={14} />}
-          <span
-            style={{
-              overflow: "hidden",
-              maxWidth: collapsed ? 0 : 100,
-              opacity: collapsed ? 0 : 1,
-              transition: "max-width 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.18s",
-              whiteSpace: "nowrap",
-              display: "inline-block",
-              fontSize: 11,
-              fontWeight: 500,
-            }}
-          >
-            {tr.ui.collapse}
-          </span>
-        </button>
-      </div>
-
-      {/* Floating expand tab */}
-      {collapsed && (
-        <button
-          onClick={toggle}
-          className="absolute top-1/2 -translate-y-1/2 flex items-center justify-center transition-all duration-150 hover:scale-110"
+          className="flex md:hidden"
+          onClick={() => setMobileOpen(o => !o)}
           style={{
-            right: -14,
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            background: "#1E293B",
-            border: "1px solid rgba(255,255,255,0.12)",
-            boxShadow: "2px 0 8px rgba(0,0,0,0.20)",
-            color: "#60A5FA",
-            zIndex: 10,
+            marginLeft: "auto",
+            width: 36,
+            height: 36,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 8,
+            border: "none",
+            background: "transparent",
+            color: "#475569",
+            cursor: "pointer",
           }}
-          title={tr.ui.expand}
         >
-          <CaretRight size={12} weight="bold" />
+          {mobileOpen ? <X size={18} /> : <List size={18} />}
         </button>
+      </header>
+
+      {/* ── Mobile drawer ── */}
+      {mobileOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            top: 56,
+            zIndex: 40,
+            background: "rgba(0,0,0,0.25)",
+          }}
+          onClick={() => setMobileOpen(false)}
+        >
+          <nav
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              background: "#FFFFFF",
+              borderBottom: "1px solid #E2E8F0",
+              padding: "10px 12px 16px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+              {NAV.map(({ href, key, icon: Icon }) => {
+                const label = tr.nav[key];
+                const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMobileOpen(false)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "9px 12px",
+                      borderRadius: 8,
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: active ? "#2563EB" : "#475569",
+                      background: active ? "#EFF6FF" : "transparent",
+                    }}
+                  >
+                    <Icon size={15} weight={active ? "fill" : "regular"} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 4, paddingRight: 4 }}>
+              <span style={{ fontSize: 10, color: "#CBD5E1" }}>Dec 2024 · v2.4.0</span>
+              <div
+                style={{
+                  display: "flex",
+                  background: "#F1F5F9",
+                  borderRadius: 8,
+                  padding: 3,
+                  border: "1px solid #E2E8F0",
+                  gap: 2,
+                }}
+              >
+                {["en", "de"].map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => setLang(l)}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      background: lang === l ? "#2563EB" : "transparent",
+                      color: lang === l ? "#FFFFFF" : "#94A3B8",
+                      transition: "all 0.15s",
+                      cursor: "pointer",
+                      border: "none",
+                    }}
+                  >
+                    {l.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </nav>
+        </div>
       )}
-    </aside>
+    </>
   );
 }

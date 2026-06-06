@@ -1,6 +1,6 @@
 import "./globals.css";
 import { LanguageProvider } from "@/lib/LanguageContext";
-import Sidebar from "@/components/layout/Sidebar";
+import Navbar from "@/components/layout/Sidebar"; // rename import once you rename the file
 import MobileHeader from "@/components/layout/MobileHeader";
 
 export const dynamic = "force-dynamic";
@@ -14,17 +14,14 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
-        className="flex h-screen overflow-hidden antialiased"
+        className="flex flex-col h-screen overflow-hidden antialiased"
         style={{ background: "#F8FAFC", color: "#0F172A" }}
       >
         <LanguageProvider>
-          <Sidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <MobileHeader />
-            <main className="flex-1 overflow-y-auto">
-              {children}
-            </main>
-          </div>
+          <Navbar />
+          <main className="flex-1 overflow-y-auto">
+            {children}
+          </main>
         </LanguageProvider>
       </body>
     </html>
